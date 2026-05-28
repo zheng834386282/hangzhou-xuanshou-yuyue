@@ -1,0 +1,209 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>棋遇预约系统 · Demo</title>
+<link rel="stylesheet" href="./styles/tokens.css" />
+<style>
+body {
+  background:
+    radial-gradient(circle at 10% 10%, #FFE9A8 0%, transparent 35%),
+    radial-gradient(circle at 90% 90%, #F0C8E8 0%, transparent 35%),
+    linear-gradient(135deg, #FFF8EC 0%, #F7F0FF 100%);
+  min-height: 100vh;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 24px;
+}
+.entry-wrap {
+  max-width: 880px;
+  width: 100%;
+  text-align: center;
+}
+.brand {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  padding: 6px 14px;
+  border-radius: 16px;
+  background: rgba(255,255,255,0.6);
+  backdrop-filter: blur(10px);
+  font-size: 13px;
+  color: var(--candy-purple-deep);
+  font-weight: 500;
+  margin-bottom: 20px;
+}
+h1 {
+  font-size: 36px;
+  font-weight: 800;
+  color: var(--text-1);
+  margin: 0 0 12px;
+  letter-spacing: -1px;
+  text-shadow: 0 2px 12px rgba(139,127,216,0.15);
+}
+h1 span { background: linear-gradient(135deg, var(--candy-purple), var(--candy-pink)); -webkit-background-clip: text; -webkit-text-fill-color: transparent; }
+.lead {
+  font-size: 15px;
+  color: var(--text-2);
+  margin-bottom: 40px;
+  line-height: 1.6;
+}
+.entries {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 20px;
+  margin-bottom: 32px;
+}
+.entry-card {
+  position: relative;
+  padding: 32px 28px;
+  border-radius: 20px;
+  background: #fff;
+  box-shadow: 0 12px 40px rgba(139,127,216,0.12);
+  text-align: left;
+  cursor: pointer;
+  transition: all 0.25s;
+  overflow: hidden;
+}
+.entry-card:hover {
+  transform: translateY(-4px);
+  box-shadow: 0 16px 48px rgba(139,127,216,0.2);
+}
+.entry-card::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  border-radius: 20px;
+  padding: 2px;
+  background: linear-gradient(135deg, transparent, transparent);
+  -webkit-mask: linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0);
+  -webkit-mask-composite: xor;
+  mask-composite: exclude;
+  opacity: 0;
+  transition: opacity 0.25s;
+}
+.entry-card:hover::before {
+  opacity: 1;
+  background: linear-gradient(135deg, var(--candy-purple), var(--candy-pink));
+}
+.entry-card .icon-box {
+  width: 64px; height: 64px;
+  border-radius: 18px;
+  display: flex; align-items: center; justify-content: center;
+  font-size: 32px;
+  margin-bottom: 16px;
+}
+.entry-card.client .icon-box { background: linear-gradient(135deg, #FFE9A8, #FFD66B); }
+.entry-card.admin .icon-box { background: linear-gradient(135deg, #C5BDEC, #8B7FD8); color: #fff; }
+.entry-card .label-tag {
+  display: inline-block;
+  padding: 3px 10px;
+  border-radius: 10px;
+  font-size: 11px;
+  font-weight: 500;
+  margin-bottom: 12px;
+}
+.entry-card.client .label-tag { background: #FFF1CC; color: #B07A1F; }
+.entry-card.admin .label-tag { background: #EAE5F8; color: var(--candy-purple-deep); }
+.entry-card h2 {
+  margin: 0 0 8px;
+  font-size: 22px;
+  color: var(--text-1);
+}
+.entry-card p {
+  margin: 0;
+  font-size: 13px;
+  color: var(--text-2);
+  line-height: 1.6;
+}
+.entry-card .arrow {
+  position: absolute;
+  right: 24px; top: 32px;
+  font-size: 24px;
+  color: var(--text-3);
+  transition: transform 0.25s;
+}
+.entry-card:hover .arrow { transform: translateX(4px); color: var(--candy-purple); }
+
+.entry-card .features {
+  margin-top: 16px;
+  padding-top: 16px;
+  border-top: 1px dashed var(--line);
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+.entry-card .features span {
+  font-size: 11px;
+  padding: 3px 8px;
+  border-radius: 6px;
+  background: var(--bg-soft);
+  color: var(--text-2);
+}
+
+.tip {
+  font-size: 12px;
+  color: var(--text-3);
+  background: rgba(255,255,255,0.5);
+  border-radius: 10px;
+  padding: 12px 16px;
+  display: inline-block;
+}
+.tip code {
+  background: rgba(139,127,216,0.1);
+  padding: 1px 6px;
+  border-radius: 4px;
+  font-family: 'Courier New', monospace;
+  color: var(--candy-purple-deep);
+}
+
+@media (max-width: 720px) {
+  .entries { grid-template-columns: 1fr; }
+  h1 { font-size: 28px; }
+}
+</style>
+</head>
+<body>
+<div class="entry-wrap">
+  <div class="brand">🐲 棋遇 · 夏季赛</div>
+  <h1>线下选手挑战赛 <span>预约系统</span></h1>
+  <p class="lead">前端 Demo · 数据存储于浏览器 localStorage · C/B 双端共享同一份 mock 数据</p>
+
+  <div class="entries">
+    <a class="entry-card client" href="./client/index.html">
+      <div class="icon-box">📱</div>
+      <span class="label-tag">C 端 · 移动端</span>
+      <h2>预约端</h2>
+      <p>选手用户使用，浏览活动详情、选择日期与场次、填写预约信息、查看预约凭证。</p>
+      <div class="features">
+        <span>日期横滑</span>
+        <span>场次余位</span>
+        <span>核销二维码</span>
+        <span>预约管理</span>
+      </div>
+      <div class="arrow">›</div>
+    </a>
+
+    <a class="entry-card admin" href="./admin/index.html">
+      <div class="icon-box">💻</div>
+      <span class="label-tag">B 端 · 管理后台</span>
+      <h2>运营管理后台</h2>
+      <p>赛事运营使用，管理可预约场次、查看预约名单、现场核销操作、统计数据看板。</p>
+      <div class="features">
+        <span>数据看板</span>
+        <span>批量生成场次</span>
+        <span>名单导出</span>
+        <span>扫码核销</span>
+      </div>
+      <div class="arrow">›</div>
+    </a>
+  </div>
+
+  <div class="tip">
+    💡 系统已预置 14 天种子数据。在 B 端左下角可点击 <code>重置 Mock 数据</code> 恢复初始示例
+  </div>
+</div>
+</body>
+</html>

@@ -1,0 +1,558 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover" />
+<title>棋遇夏季赛·预约</title>
+<link rel="stylesheet" href="../styles/tokens.css" />
+<link rel="stylesheet" href="../styles/client.css" />
+</head>
+<body>
+<div class="app">
+  <!-- 顶部导航 -->
+  <div class="nav">
+    <a class="back" href="../index.html">‹</a>
+    <div class="title">活动预约</div>
+    <button class="right text" id="btnMy" type="button" style="background:none;border:none;cursor:pointer;">我的预约</button>
+  </div>
+
+  <!-- 活动 KV -->
+  <div class="kv">
+    <div class="kv-mascot">🐲</div>
+    <span class="kv-tag">线下挑战 · 限额报名</span>
+    <div class="kv-title" id="kvTitle">杭州棋遇·夏季赛线下选手挑战赛</div>
+    <div class="kv-sub" id="kvSub">金铲铲之战 / 云顶之弈 双游戏交替</div>
+  </div>
+
+  <!-- 活动信息 -->
+  <div class="info-card">
+    <div class="info-row">
+      <span class="icon">📍</span>
+      <span class="label">场馆</span>
+      <span id="infoLoc"></span>
+    </div>
+    <div class="info-row">
+      <span class="icon">⏱️</span>
+      <span class="label">时长</span>
+      <span id="infoDur"></span>
+    </div>
+    <div class="info-row">
+      <span class="icon">📝</span>
+      <span class="label">介绍</span>
+      <span id="infoDesc" style="line-height:1.6;"></span>
+    </div>
+  </div>
+
+  <!-- 日期选择 -->
+  <div class="section-title">选择日期</div>
+  <div class="section-sub">不同日期对应不同游戏，按底色识别</div>
+  <div class="date-scroll">
+    <div class="date-list" id="dateList"></div>
+  </div>
+
+  <!-- 场次列表 -->
+  <div class="section-title" style="margin-top:20px;">选择场次</div>
+  <div class="section-sub" id="dateLabel">—</div>
+  <div class="session-list" id="sessionList"></div>
+
+  <!-- 注意事项 -->
+  <div class="section-title" style="margin-top:24px;">预约须知</div>
+  <div class="info-card">
+    <ol class="rule-list" id="ruleList"></ol>
+  </div>
+</div>
+
+<!-- 底部 CTA -->
+<div class="cta-bar">
+  <button class="btn btn-primary" id="btnNext" disabled>请选择场次</button>
+</div>
+
+<!-- ========== 弹窗 1：确认预约 ========== -->
+<div class="sheet-mask" id="confirmSheet">
+  <div class="sheet">
+    <div class="sheet-header">
+      <button class="sheet-close" data-close="confirmSheet" type="button">×</button>
+      <div class="sheet-title">确认预约信息</div>
+    </div>
+    <div class="sheet-body">
+      <div style="height:12px;"></div>
+
+      <!-- 场次概览 -->
+      <div class="summary-card">
+        <div class="row"><span>活动</span><strong id="cActTitle">—</strong></div>
+        <div class="row"><span>游戏</span><strong id="cGame">—</strong></div>
+        <div class="row"><span>挑战选手</span><strong id="cChallenger">—</strong></div>
+        <div class="row"><span>日期</span><strong id="cDate">—</strong></div>
+        <div class="row"><span>时段</span><strong id="cTime">—</strong></div>
+        <div class="row"><span>地点</span><strong id="cLoc">—</strong></div>
+      </div>
+
+      <div class="section-title">参赛账号</div>
+      <div class="form">
+        <div class="form-row">
+          <label>游戏账号</label>
+          <div class="readonly" id="cGameAcc">—</div>
+        </div>
+        <div class="form-row">
+          <label>预约人数</label>
+          <div class="readonly">1 人<span class="lock">单人挑战</span></div>
+        </div>
+      </div>
+
+      <div class="section-title">温馨提示</div>
+      <div class="info-card">
+        <ol class="rule-list">
+          <li>预约绑定当前游戏账号，每个账号每场仅可预约一位</li>
+          <li>提交后系统将生成专属预约 ID，请向工作人员出示该 ID 完成现场签到</li>
+          <li>请按时到场，迟到 15 分钟视为放弃</li>
+        </ol>
+      </div>
+      <div style="height:8px;"></div>
+    </div>
+    <div class="sheet-footer">
+      <div class="row">
+        <button class="btn btn-ghost" data-close="confirmSheet" type="button">返回修改</button>
+        <button class="btn btn-primary" id="btnConfirmSubmit" type="button">确认提交预约</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ========== 弹窗 2：我的预约记录 ========== -->
+<div class="sheet-mask" id="mySheet">
+  <div class="sheet">
+    <div class="sheet-header">
+      <button class="sheet-close" data-close="mySheet" type="button">×</button>
+      <div class="sheet-title">我的预约记录</div>
+    </div>
+    <div class="sheet-body">
+      <div class="tabs" id="myTabs">
+        <div class="tab-item active" data-tab="all">全部</div>
+        <div class="tab-item" data-tab="pending">待核销</div>
+        <div class="tab-item" data-tab="checked">已核销</div>
+      </div>
+      <div id="myList"></div>
+    </div>
+  </div>
+</div>
+
+<!-- ========== 弹窗 3：预约凭证（取代二维码弹窗） ========== -->
+<div class="mask" id="ticketMask" style="display:none; z-index: 300;">
+  <div class="modal" style="max-width:340px;">
+    <div style="font-size:12px;color:var(--text-3);margin-bottom:6px;">现场签到凭证</div>
+    <div class="modal-title" style="font-size:16px;">请向工作人员出示以下预约 ID</div>
+    <div class="ticket-id-box">
+      <div class="ticket-id-label">预约 ID</div>
+      <div class="ticket-id-value" id="ticketId">—</div>
+      <button class="btn btn-ghost" id="copyIdBtn" type="button" style="height:32px;font-size:12px;padding:0 12px;margin-top:10px;">📋 复制 ID</button>
+    </div>
+    <div id="ticketInfo" style="text-align:left;font-size:13px;color:var(--text-2);line-height:1.8;margin-top:6px;"></div>
+    <button class="btn btn-ghost close-btn" id="closeTicket" type="button">关闭</button>
+  </div>
+</div>
+
+<!-- ========== 弹窗 4：预约成功提示 ========== -->
+<div class="mask success-toast" id="successToast" style="display:none; z-index: 400;">
+  <div class="modal">
+    <div class="big-check">✓</div>
+    <div class="big-title">预约成功啦！</div>
+    <div class="big-sub">请保留预约 ID，现场向工作人员出示完成签到</div>
+    <div class="code-disp">
+      <div class="label-mini">您的预约 ID</div>
+      <div class="code-big" id="successCode">—</div>
+    </div>
+    <div style="display:flex;gap:10px;">
+      <button class="btn btn-ghost" id="successClose" type="button" style="flex:1;height:42px;">知道了</button>
+      <button class="btn btn-primary" id="successGoMy" type="button" style="flex:1;height:42px;">查看我的预约</button>
+    </div>
+  </div>
+</div>
+
+<script type="module">
+import {
+  initStore, getActivity, getSessions, getSessionsByDate,
+  getSessionById, fmtDate, fmtDateCN, isPast,
+  getCurrentAccount, getBookingsByOpenid, createBooking,
+  getGame, getPrimaryGameOfDate, formatBookingDisplayId, shortBookingId
+} from '../shared/store.js';
+
+initStore();
+
+const act = getActivity();
+document.getElementById('kvTitle').textContent = act.title;
+document.getElementById('kvSub').textContent = act.subtitle;
+document.getElementById('infoLoc').textContent = `${act.location}（${act.address}）`;
+document.getElementById('infoDur').textContent = act.duration;
+document.getElementById('infoDesc').textContent = act.description;
+document.getElementById('ruleList').innerHTML = act.rules.map(r => `<li>${r}</li>`).join('');
+
+// ========== 抽屉开关 ==========
+function openSheet(id) {
+  document.getElementById(id).classList.add('show');
+  document.body.style.overflow = 'hidden';
+}
+function closeSheet(id) {
+  document.getElementById(id).classList.remove('show');
+  document.body.style.overflow = '';
+}
+document.querySelectorAll('[data-close]').forEach(el => {
+  el.addEventListener('click', () => closeSheet(el.dataset.close));
+});
+document.querySelectorAll('.sheet-mask').forEach(el => {
+  el.addEventListener('click', (e) => {
+    if (e.target === el) closeSheet(el.id);
+  });
+});
+
+// ========== 主页：日期 + 场次 ==========
+function getDatesWithSessions() {
+  const sessions = getSessions();
+  const map = new Map();
+  sessions.forEach(s => {
+    if (!map.has(s.date)) map.set(s.date, { total: 0, available: 0, allPast: true });
+    const item = map.get(s.date);
+    item.total += s.capacity;
+    item.available += Math.max(0, s.capacity - s.booked);
+    if (!isPast(s.date, s.endTime)) item.allPast = false;
+  });
+  return Array.from(map.entries())
+    .map(([date, info]) => ({ date, ...info, game: getPrimaryGameOfDate(date) }))
+    .sort((a, b) => a.date.localeCompare(b.date))
+    .filter(d => !d.allPast);
+}
+
+let dates = getDatesWithSessions();
+const todayStr = fmtDate(new Date());
+let activeDate = dates[0]?.date || null;
+let activeSession = null;
+
+function renderDates() {
+  const wrap = document.getElementById('dateList');
+  wrap.innerHTML = dates.map(d => {
+    const dt = new Date(d.date);
+    const week = ['日','一','二','三','四','五','六'][dt.getDay()];
+    const day = dt.getDate();
+    const month = dt.getMonth() + 1;
+    const game = getGame(d.game);
+    const cls = ['date-item'];
+    if (d.date === activeDate) cls.push('active');
+    if (d.date === todayStr) cls.push('today');
+    if (d.available === 0) cls.push('full');
+    if (d.game) cls.push('game-' + d.game);
+    return `
+      <div class="${cls.join(' ')}" data-date="${d.date}">
+        <div class="week">周${week}</div>
+        <div class="day">${day}</div>
+        <div class="month">${month}月</div>
+        ${d.game ? `<div class="game-mark">${game.icon} ${game.short}</div>` : ''}
+      </div>`;
+  }).join('');
+
+  wrap.querySelectorAll('.date-item').forEach(el => {
+    el.addEventListener('click', () => {
+      activeDate = el.dataset.date;
+      activeSession = null;
+      renderDates();
+      renderSessions();
+      updateCTA();
+    });
+  });
+}
+
+function renderSessions() {
+  if (activeDate) {
+    const game = getGame(getPrimaryGameOfDate(activeDate));
+    document.getElementById('dateLabel').innerHTML = `${fmtDateCN(activeDate)} · <span style="color:${game.color2};font-weight:600;">${game.icon} ${game.name}</span>`;
+  } else {
+    document.getElementById('dateLabel').textContent = '请先选择日期';
+  }
+
+  const list = document.getElementById('sessionList');
+  if (!activeDate) { list.innerHTML = ''; return; }
+
+  const sessions = getSessionsByDate(activeDate)
+    .sort((a, b) => a.startTime.localeCompare(b.startTime));
+
+  if (sessions.length === 0) {
+    list.innerHTML = `<div class="empty"><span class="emoji">🌙</span>这天暂无场次</div>`;
+    return;
+  }
+
+  list.innerHTML = sessions.map(s => {
+    const left = s.capacity - s.booked;
+    const past = isPast(s.date, s.endTime);
+    const full = left <= 0;
+    const closed = s.status === 'closed';
+    const disabled = past || full || closed;
+
+    const pct = Math.round((s.booked / s.capacity) * 100);
+    const leftClass = full ? 'full' : (left <= 3 ? 'few' : '');
+    const leftText = past ? '已结束' : closed ? '已关闭' : full ? '已满' : `余 ${left}`;
+
+    const cls = ['session-card', 'game-' + (s.game || 'jcc')];
+    if (disabled) cls.push('disabled');
+    if (activeSession === s.id) cls.push('active');
+
+    const ch = s.challenger;
+    const game = getGame(s.game);
+
+    return `
+      <div class="${cls.join(' ')}" data-id="${s.id}" data-disabled="${disabled}">
+        <span class="game-rail"></span>
+        ${ch ? `
+          <div class="challenger">
+            <div class="ava">${ch.avatar || '🎮'}</div>
+            <div class="who">
+              <span class="label-mini">挑战选手</span>
+              <span class="name-cn">${ch.name}</span>
+            </div>
+          </div>
+        ` : ''}
+        <div class="session-time">
+          <span class="game-tag ${s.game || 'jcc'}">${game.icon} ${game.short}</span>
+          <div class="range">${s.startTime} - ${s.endTime}</div>
+          <div class="duration">容量 ${s.capacity} · 已报 ${s.booked}</div>
+        </div>
+        <div class="session-status">
+          <div class="left ${leftClass}">${leftText}</div>
+          <div class="cap-bar"><i class="${pct > 70 ? 'warn' : ''}" style="width:${pct}%"></i></div>
+        </div>
+      </div>`;
+  }).join('');
+
+  list.querySelectorAll('.session-card').forEach(el => {
+    el.addEventListener('click', () => {
+      if (el.dataset.disabled === 'true') return;
+      activeSession = el.dataset.id;
+      renderSessions();
+      updateCTA();
+    });
+  });
+}
+
+function updateCTA() {
+  const btn = document.getElementById('btnNext');
+  if (!activeSession) {
+    btn.disabled = true;
+    btn.textContent = activeDate ? '请选择场次' : '请先选择日期';
+  } else {
+    btn.disabled = false;
+    btn.textContent = '前往确认预约信息';
+  }
+}
+
+document.getElementById('btnNext').addEventListener('click', () => {
+  if (!activeSession) return;
+  openConfirmSheet(activeSession);
+});
+
+// ========== 弹窗 1：确认预约 ==========
+let confirmSid = null;
+
+function openConfirmSheet(sid) {
+  const sess = getSessionById(sid);
+  if (!sess) return alert('场次不存在');
+  const acc = getCurrentAccount();
+
+  const dup = getBookingsByOpenid(acc.openid).find(
+    b => b.sessionId === sid && b.status === 'pending'
+  );
+  if (dup) {
+    alert(`你的账号「${acc.nickname}」已预约该场次（预约 ID ${formatBookingDisplayId(dup.id)}），请勿重复预约`);
+    return;
+  }
+
+  confirmSid = sid;
+  const game = getGame(sess.game);
+  const ch = sess.challenger;
+
+  document.getElementById('cActTitle').textContent = act.title;
+  document.getElementById('cGame').innerHTML = `${game.icon} ${game.name}`;
+  document.getElementById('cChallenger').innerHTML = ch
+    ? `<span style="font-size:16px;margin-right:4px;">${ch.avatar || '🎮'}</span>${ch.name}`
+    : '<span style="color:var(--text-3);">未指定</span>';
+  document.getElementById('cDate').textContent = fmtDateCN(sess.date);
+  document.getElementById('cTime').textContent = `${sess.startTime} - ${sess.endTime}`;
+  document.getElementById('cLoc').textContent = act.location;
+  document.getElementById('cGameAcc').innerHTML =
+    `<span style="margin-right:6px;font-size:18px;">${acc.avatar}</span>${acc.nickname}<span style="color:var(--text-3);font-size:12px;font-weight:400;margin-left:4px;">${acc.tag}</span><span class="lock">🔒 已绑定</span>`;
+
+  openSheet('confirmSheet');
+}
+
+document.getElementById('btnConfirmSubmit').onclick = () => {
+  const sess = getSessionById(confirmSid);
+  if (!sess) return alert('场次不存在');
+  if (sess.booked >= sess.capacity) return alert('该场次已满');
+
+  const acc = getCurrentAccount();
+  try {
+    const booking = createBooking({
+      sessionId: confirmSid,
+      openid: acc.openid,
+      gameAccount: {
+        nickname: acc.nickname,
+        tag: acc.tag,
+        avatar: acc.avatar,
+        server: acc.server,
+        rank: acc.rank
+      }
+    });
+    closeSheet('confirmSheet');
+
+    activeSession = null;
+    dates = getDatesWithSessions();
+    renderDates();
+    renderSessions();
+    updateCTA();
+
+    showSuccess(booking);
+  } catch (e) {
+    alert(e.message || '提交失败');
+  }
+};
+
+// ========== 弹窗 4：成功提示 ==========
+function showSuccess(bk) {
+  document.getElementById('successCode').textContent = formatBookingDisplayId(bk.id);
+  document.getElementById('successToast').style.display = 'flex';
+}
+document.getElementById('successClose').onclick = () => {
+  document.getElementById('successToast').style.display = 'none';
+};
+document.getElementById('successGoMy').onclick = () => {
+  document.getElementById('successToast').style.display = 'none';
+  openMySheet();
+};
+
+// ========== 弹窗 2：我的预约记录 ==========
+let myTab = 'all';
+
+document.getElementById('btnMy').onclick = () => openMySheet();
+
+document.querySelectorAll('#myTabs .tab-item').forEach(el => {
+  el.onclick = () => {
+    document.querySelectorAll('#myTabs .tab-item').forEach(t => t.classList.remove('active'));
+    el.classList.add('active');
+    myTab = el.dataset.tab;
+    renderMyList();
+  };
+});
+
+function openMySheet() {
+  myTab = 'all';
+  document.querySelectorAll('#myTabs .tab-item').forEach(t => t.classList.remove('active'));
+  document.querySelector('#myTabs .tab-item[data-tab="all"]').classList.add('active');
+  renderMyList();
+  openSheet('mySheet');
+}
+
+function renderMyList() {
+  const acc = getCurrentAccount();
+  const list = document.getElementById('myList');
+  let bookings = getBookingsByOpenid(acc.openid).filter(b => b.status !== 'cancelled');
+  if (myTab !== 'all') bookings = bookings.filter(b => b.status === myTab);
+
+  if (!bookings.length) {
+    list.innerHTML = `
+      <div class="empty">
+        <span class="emoji">📭</span>
+        当前账号暂无预约记录
+      </div>`;
+    return;
+  }
+
+  list.innerHTML = bookings.map(bk => {
+    const sess = getSessionById(bk.sessionId);
+    if (!sess) return '';
+    const past = isPast(sess.date, sess.endTime);
+    const statusMap = {
+      pending: past ? { tag: '已过期', cls: 'tag-gray' } : { tag: '待核销', cls: 'tag-yellow' },
+      checked: { tag: '已核销', cls: 'tag-mint' }
+    };
+    const st = statusMap[bk.status] || { tag: bk.status, cls: 'tag-gray' };
+    const cardCls = ['my-card'];
+    if (bk.status === 'checked') cardCls.push('checked');
+
+    const canShow = bk.status === 'pending' && !past;
+    const game = getGame(sess.game);
+    const ch = sess.challenger;
+    const displayId = formatBookingDisplayId(bk.id);
+
+    return `
+      <div class="${cardCls.join(' ')}">
+        <div class="head">
+          <div class="date-info">${fmtDateCN(sess.date)}</div>
+          <span class="tag ${st.cls}">${st.tag}</span>
+        </div>
+        <div class="meta">🎮 ${game.icon} ${game.name}${ch ? ` · 挑战选手 ${ch.avatar || ''} ${ch.name}` : ''}</div>
+        <div class="meta">⏰ ${sess.startTime} - ${sess.endTime}</div>
+        <div class="meta">🎫 预约 ID <strong style="color:var(--candy-purple-deep);letter-spacing:1px;font-family:'Courier New',monospace;">${displayId}</strong></div>
+        <div class="meta">📍 ${act.location}</div>
+        <div class="actions">
+          ${canShow
+            ? `<button class="btn btn-primary" data-act="show" data-id="${bk.id}" type="button">查看预约凭证</button>`
+            : `<button class="btn btn-ghost" data-act="show" data-id="${bk.id}" type="button">查看详情</button>`}
+        </div>
+      </div>`;
+  }).join('');
+
+  list.querySelectorAll('button[data-act]').forEach(btn => {
+    btn.onclick = () => {
+      const id = btn.dataset.id;
+      if (btn.dataset.act === 'show') showTicket(id);
+    };
+  });
+}
+
+// ========== 弹窗 3：预约凭证 ==========
+function showTicket(bid) {
+  const acc = getCurrentAccount();
+  const bk = getBookingsByOpenid(acc.openid).find(b => b.id === bid);
+  if (!bk) return;
+  const sess = getSessionById(bk.sessionId);
+  const game = getGame(sess?.game);
+  const ch = sess?.challenger;
+  const displayId = formatBookingDisplayId(bk.id);
+
+  document.getElementById('ticketId').textContent = displayId;
+  document.getElementById('ticketInfo').innerHTML = sess ? `
+    <div style="background:var(--bg-soft);padding:12px 14px;border-radius:10px;">
+      <div>🎮 <strong style="color:var(--text-1);">${game.icon} ${game.name}</strong></div>
+      ${ch ? `<div style="margin-top:4px;">🥊 挑战选手 <strong style="color:var(--text-1);">${ch.avatar || '🎮'} ${ch.name}</strong></div>` : ''}
+      <div style="margin-top:4px;">📅 ${fmtDateCN(sess.date)}</div>
+      <div style="margin-top:4px;">⏰ ${sess.startTime} - ${sess.endTime}</div>
+      <div style="margin-top:4px;">📍 ${act.location}</div>
+      <div style="margin-top:4px;">🎮 ${bk.gameAccount?.avatar || ''} ${bk.gameAccount?.nickname || ''} ${bk.gameAccount?.tag || ''}</div>
+    </div>
+  ` : '';
+
+  // 复制按钮
+  document.getElementById('copyIdBtn').onclick = async () => {
+    try {
+      await navigator.clipboard.writeText(displayId);
+      const b = document.getElementById('copyIdBtn');
+      const orig = b.textContent;
+      b.textContent = '✓ 已复制';
+      setTimeout(() => { b.textContent = orig; }, 1500);
+    } catch {
+      alert('复制失败，请手动记录 ID');
+    }
+  };
+
+  document.getElementById('ticketMask').style.display = 'flex';
+}
+document.getElementById('closeTicket').onclick = () => {
+  document.getElementById('ticketMask').style.display = 'none';
+};
+document.getElementById('ticketMask').onclick = (e) => {
+  if (e.target.id === 'ticketMask') document.getElementById('ticketMask').style.display = 'none';
+};
+
+// 初始化
+renderDates();
+renderSessions();
+updateCTA();
+</script>
+</body>
+</html>

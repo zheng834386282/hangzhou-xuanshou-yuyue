@@ -1,0 +1,213 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>预约名单 · 棋遇预约管理</title>
+<link rel="stylesheet" href="../styles/tokens.css" />
+<link rel="stylesheet" href="../styles/admin.css" />
+</head>
+<body>
+<div class="layout" id="layout"></div>
+
+<script type="module">
+import {
+  initStore, getBookings, getSessions, getSessionById, fmtDateCN,
+  checkInBooking, getGame, formatBookingDisplayId
+} from '../shared/store.js';
+import { renderAdminLayout } from '../shared/layout.js';
+
+initStore();
+renderAdminLayout({
+  active: 'bookings',
+  title: '预约名单',
+  actions: `<button class="btn btn-primary" id="exportBtn" style="height:36px;padding:0 14px;font-size:13px;">导出 CSV</button>`
+});
+
+let filterStatus = 'all';
+let filterSession = '';
+let filterGame = 'all';
+let keyword = '';
+
+function render() {
+  const sessions = getSessions().sort((a, b) => (a.date + a.startTime).localeCompare(b.date + b.startTime));
+  let bookings = getBookings().slice().filter(b => b.status !== 'cancelled');
+
+  if (filterStatus !== 'all') bookings = bookings.filter(b => b.status === filterStatus);
+  if (filterSession) bookings = bookings.filter(b => b.sessionId === filterSession);
+
+  if (filterGame !== 'all') {
+    bookings = bookings.filter(b => {
+      const s = getSessionById(b.sessionId);
+      return s && (s.game || 'jcc') === filterGame;
+    });
+  }
+
+  if (keyword) {
+    const k = keyword.toLowerCase();
+    const kUpper = keyword.toUpperCase().replace(/^#/, '').replace(/\s/g, '');
+    bookings = bookings.filter(b =>
+      String(b.id || '').toUpperCase().includes(kUpper) ||
+      formatBookingDisplayId(b.id).includes(kUpper) ||
+      (b.gameAccount?.nickname || '').toLowerCase().includes(k) ||
+      (b.gameAccount?.tag || '').toLowerCase().includes(k)
+    );
+  }
+
+  bookings.sort((a, b) => b.createdAt - a.createdAt);
+
+  const stats = {
+    pending: bookings.filter(b => b.status === 'pending').length,
+    checked: bookings.filter(b => b.status === 'checked').length
+  };
+
+  document.getElementById('content').innerHTML = `
+    <div class="card">
+      <div class="card-head">
+        <div>
+          <h3>预约记录（${bookings.length}）</h3>
+          <div class="sub">待核销 ${stats.pending} · 已核销 ${stats.checked}</div>
+        </div>
+      </div>
+
+      <div class="filter-bar">
+        <input type="search" id="kwInput" placeholder="搜索 游戏昵称 / 预约 ID" value="${keyword}" style="width:240px;" />
+        <select id="fGame">
+          <option value="all">全部游戏</option>
+          <option value="jcc">⚔️ 金铲铲之战</option>
+          <option value="tft">♟️ 云顶之弈</option>
+        </select>
+        <select id="fStatus">
+          <option value="all">全部状态</option>
+          <option value="pending">待核销</option>
+          <option value="checked">已核销</option>
+        </select>
+        <select id="fSession">
+          <option value="">全部场次</option>
+          ${sessions.map(s => {
+            const g = getGame(s.game);
+            return `<option value="${s.id}">${g.icon} ${fmtDateCN(s.date)} ${s.startTime}${s.challenger ? ` · ${s.challenger.name}` : ''}</option>`;
+          }).join('')}
+        </select>
+        <button class="btn btn-ghost" id="fClear" style="height:36px;padding:0 12px;font-size:12px;">清除</button>
+      </div>
+
+      ${bookings.length === 0
+        ? `<div class="admin-empty"><span class="emoji">📭</span>暂无符合条件的预约记录</div>`
+        : `<table class="table">
+            <thead>
+              <tr>
+                <th>游戏账号</th>
+                <th>游戏</th>
+                <th>挑战选手</th>
+                <th>场次</th>
+                <th>预约 ID</th>
+                <th>状态</th>
+                <th>预约时间</th>
+                <th style="width:100px;">操作</th>
+              </tr>
+            </thead>
+            <tbody>
+              ${bookings.map(b => {
+                const sess = getSessionById(b.sessionId);
+                const status = b.status === 'checked'
+                  ? `<span class="badge badge-mint">已核销</span>`
+                  : `<span class="badge badge-yellow">待核销</span>`;
+                const ga = b.gameAccount || {};
+                const game = getGame(sess?.game);
+                const ch = sess?.challenger;
+                return `<tr>
+                  <td>
+                    <div style="display:flex;align-items:center;gap:8px;">
+                      <div style="width:28px;height:28px;border-radius:50%;background:linear-gradient(135deg,#FFE9A8,#D88ECF);display:flex;align-items:center;justify-content:center;font-size:14px;flex-shrink:0;">${ga.avatar || '🎮'}</div>
+                      <div style="min-width:0;">
+                        <div style="font-weight:600;font-size:13px;color:var(--text-1);">${ga.nickname || '<span style=\"color:var(--text-3);\">未绑定</span>'}<span style="font-weight:400;font-size:11px;color:var(--text-3);margin-left:4px;">${ga.tag || ''}</span></div>
+                        <div style="font-size:11px;color:var(--text-3);">${ga.server || ''}${ga.rank ? ` · ${ga.rank}` : ''}</div>
+                      </div>
+                    </div>
+                  </td>
+                  <td>${sess ? `<span class="game-badge ${sess.game || 'jcc'}">${game.icon} ${game.short}</span>` : '—'}</td>
+                  <td>${ch
+                    ? `<div class="challenger-mini"><div class="ava">${ch.avatar || '🎮'}</div><span class="name">${ch.name}</span></div>`
+                    : '<span style="color:var(--text-3);font-size:12px;">—</span>'}</td>
+                  <td>${sess ? `${fmtDateCN(sess.date)} ${sess.startTime}` : '<span style="color:var(--text-3);">已删除</span>'}</td>
+                  <td style="font-family:monospace;font-weight:600;color:var(--candy-purple-deep);letter-spacing:1px;">${formatBookingDisplayId(b.id)}</td>
+                  <td>${status}</td>
+                  <td style="color:var(--text-3);font-size:12px;">${new Date(b.createdAt).toLocaleString('zh-CN', {hour12: false}).slice(0, 16)}</td>
+                  <td>
+                    <div class="ops">
+                      ${b.status === 'pending'
+                        ? `<button data-act="check" data-id="${b.id}">核销</button>`
+                        : `<span style="color:var(--text-3);font-size:12px;">无操作</span>`}
+                    </div>
+                  </td>
+                </tr>`;
+              }).join('')}
+            </tbody>
+          </table>`
+      }
+    </div>
+  `;
+
+  document.getElementById('kwInput').oninput = (e) => { keyword = e.target.value; render(); };
+  document.getElementById('fGame').value = filterGame;
+  document.getElementById('fGame').onchange = (e) => { filterGame = e.target.value; render(); };
+  document.getElementById('fStatus').value = filterStatus;
+  document.getElementById('fStatus').onchange = (e) => { filterStatus = e.target.value; render(); };
+  document.getElementById('fSession').value = filterSession;
+  document.getElementById('fSession').onchange = (e) => { filterSession = e.target.value; render(); };
+  document.getElementById('fClear').onclick = () => {
+    filterStatus = 'all'; filterSession = ''; filterGame = 'all'; keyword = ''; render();
+  };
+
+  document.querySelectorAll('button[data-act]').forEach(btn => {
+    btn.onclick = () => {
+      const id = btn.dataset.id;
+      if (btn.dataset.act === 'check') {
+        const r = checkInBooking(id);
+        alert(r.msg);
+        if (r.ok) render();
+      }
+    };
+  });
+}
+
+document.getElementById('exportBtn').onclick = () => {
+  const bookings = getBookings().filter(b => b.status !== 'cancelled');
+  const sessions = getSessions();
+  const sMap = Object.fromEntries(sessions.map(s => [s.id, s]));
+  const rows = [
+    ['预约 ID', '游戏昵称', '游戏 ID', '大区', '段位', '游戏类型', '挑战选手', '场次日期', '场次时段', '状态', '预约时间']
+  ];
+  bookings.forEach(b => {
+    const s = sMap[b.sessionId];
+    const ga = b.gameAccount || {};
+    const game = getGame(s?.game);
+    rows.push([
+      formatBookingDisplayId(b.id),
+      ga.nickname || '',
+      ga.tag || '',
+      ga.server || '',
+      ga.rank || '',
+      s ? game.name : '',
+      s?.challenger?.name || '',
+      s ? s.date : '',
+      s ? `${s.startTime}-${s.endTime}` : '',
+      ({ pending: '待核销', checked: '已核销' })[b.status],
+      new Date(b.createdAt).toLocaleString('zh-CN', { hour12: false })
+    ]);
+  });
+  const csv = '\uFEFF' + rows.map(r => r.map(x => `"${String(x).replace(/"/g, '""')}"`).join(',')).join('\n');
+  const blob = new Blob([csv], { type: 'text/csv' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = `预约名单_${new Date().toISOString().slice(0, 10)}.csv`;
+  a.click();
+  URL.revokeObjectURL(url);
+};
+
+render();
+</script>
+</body>
+</html>

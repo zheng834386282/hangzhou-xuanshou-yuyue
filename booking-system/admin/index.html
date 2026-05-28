@@ -1,0 +1,226 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>数据看板 · 棋遇预约管理</title>
+<link rel="stylesheet" href="../styles/tokens.css" />
+<link rel="stylesheet" href="../styles/admin.css" />
+</head>
+<body>
+<div class="layout" id="layout"></div>
+
+<script type="module">
+import { initStore, getActivity, getStats, getSessions, getBookings, fmtDateCN, getGame, GAMES } from '../shared/store.js';
+import { renderAdminLayout } from '../shared/layout.js';
+
+initStore();
+renderAdminLayout({
+  active: 'dashboard',
+  title: '数据看板',
+  actions: `
+    <a class="btn btn-ghost" href="../client/index.html" target="_blank" style="height:36px;padding:0 14px;font-size:13px;">预览预约端</a>
+    <a class="btn btn-primary" href="./sessions.html" style="height:36px;padding:0 14px;font-size:13px;">+ 新建场次</a>
+  `
+});
+
+const act = getActivity();
+const stats = getStats();
+const sessions = getSessions();
+const bookings = getBookings();
+
+const today = new Date().toISOString().slice(0, 10);
+const upcomingSessions = sessions
+  .filter(s => s.date >= today)
+  .sort((a, b) => (a.date + a.startTime).localeCompare(b.date + b.startTime))
+  .slice(0, 8);
+
+const recentBookings = bookings
+  .filter(b => b.status !== 'cancelled')
+  .sort((a, b) => b.createdAt - a.createdAt)
+  .slice(0, 8);
+
+document.getElementById('content').innerHTML = `
+  <!-- 活动概览 -->
+  <div class="card" style="background: linear-gradient(135deg, #FFF8EC, #F7F0FF); border: 1px solid var(--line);">
+    <div style="display:flex;align-items:center;gap:16px;">
+      <div style="width:64px;height:64px;border-radius:14px;background:linear-gradient(135deg, var(--candy-purple), var(--candy-pink));display:flex;align-items:center;justify-content:center;font-size:32px;">🐲</div>
+      <div style="flex:1;">
+        <div style="font-size:18px;font-weight:700;color:var(--text-1);">${act.title}</div>
+        <div style="font-size:13px;color:var(--text-2);margin-top:4px;">📍 ${act.location}　·　⏱️ ${act.duration}</div>
+      </div>
+      <div style="text-align:right;">
+        <div style="font-size:12px;color:var(--text-3);">活动 ID</div>
+        <div style="font-size:12px;color:var(--text-2);font-family:monospace;">${act.id}</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- 核心指标 -->
+  <div class="stats-grid">
+    <div class="stat-card purple">
+      <div class="label">总场次</div>
+      <div class="value">${stats.totalSessions}<span class="unit">场</span></div>
+      <div class="delta">总容量 ${stats.totalCap} 人</div>
+    </div>
+    <div class="stat-card pink">
+      <div class="label">已预约</div>
+      <div class="value">${stats.totalBookings}<span class="unit">单</span></div>
+      <div class="delta">人次 ${stats.totalBooked} · 满座率 ${stats.fillRate}%</div>
+    </div>
+    <div class="stat-card mint">
+      <div class="label">已核销</div>
+      <div class="value">${stats.checkedCount}<span class="unit">单</span></div>
+      <div class="delta">核销率 ${stats.checkRate}%</div>
+    </div>
+    <div class="stat-card yellow">
+      <div class="label">游戏分布</div>
+      <div style="display:flex;align-items:center;gap:10px;margin-top:6px;">
+        <div style="flex:1;">
+          <div style="display:flex;align-items:center;gap:4px;font-size:13px;">${GAMES.jcc.icon} ${GAMES.jcc.short}</div>
+          <div style="font-size:22px;font-weight:800;color:#E07A2C;">${stats.gameStats.jcc || 0}<span style="font-size:12px;color:var(--text-3);font-weight:500;"> 单</span></div>
+        </div>
+        <div style="width:1px;height:36px;background:var(--line);"></div>
+        <div style="flex:1;">
+          <div style="display:flex;align-items:center;gap:4px;font-size:13px;">${GAMES.tft.icon} ${GAMES.tft.short}</div>
+          <div style="font-size:22px;font-weight:800;color:#5B6FCF;">${stats.gameStats.tft || 0}<span style="font-size:12px;color:var(--text-3);font-weight:500;"> 单</span></div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- 趋势图 -->
+  <div class="card">
+    <div class="card-head">
+      <div>
+        <h3>近 7 天预约趋势</h3>
+        <div class="sub">每日新增预约单数</div>
+      </div>
+    </div>
+    <div class="chart-wrap" id="chart"></div>
+  </div>
+
+  <div style="display:grid;grid-template-columns: 1fr 1fr;gap:20px;">
+    <!-- 即将开始的场次 -->
+    <div class="card">
+      <div class="card-head">
+        <div>
+          <h3>即将开始的场次</h3>
+          <div class="sub">按时间正序展示</div>
+        </div>
+        <a href="./sessions.html" style="font-size:13px;color:var(--candy-purple-deep);">全部 →</a>
+      </div>
+      ${upcomingSessions.length === 0 ? `<div class="admin-empty"><span class="emoji">🌙</span>暂无未来场次</div>` :
+        `<table class="table">
+          <thead><tr><th style="width:90px;">游戏</th><th>日期 / 时段</th><th>选手</th><th style="width:140px;">容量</th></tr></thead>
+          <tbody>
+            ${upcomingSessions.map(s => {
+              const pct = Math.round((s.booked / s.capacity) * 100);
+              const game = getGame(s.game);
+              const ch = s.challenger;
+              return `<tr>
+                <td><span class="game-badge ${s.game || 'jcc'}">${game.icon} ${game.short}</span></td>
+                <td>
+                  <div style="font-size:13px;">${fmtDateCN(s.date)}</div>
+                  <div style="font-size:11px;color:var(--text-3);">${s.startTime} - ${s.endTime}</div>
+                </td>
+                <td>${ch ? `<div class="challenger-mini"><div class="ava">${ch.avatar || '🎮'}</div><span class="name">${ch.name}</span></div>` : '<span style="color:var(--text-3);font-size:12px;">—</span>'}</td>
+                <td>
+                  <div class="cap-cell">
+                    <div class="bar"><i class="${pct>70?'warn':''}" style="width:${pct}%"></i></div>
+                    <div class="num">${s.booked}/${s.capacity}</div>
+                  </div>
+                </td>
+              </tr>`;
+            }).join('')}
+          </tbody>
+        </table>`
+      }
+    </div>
+
+    <!-- 最近预约 -->
+    <div class="card">
+      <div class="card-head">
+        <div>
+          <h3>最近预约</h3>
+          <div class="sub">最新 8 条记录</div>
+        </div>
+        <a href="./bookings.html" style="font-size:13px;color:var(--candy-purple-deep);">全部 →</a>
+      </div>
+      ${recentBookings.length === 0 ? `<div class="admin-empty"><span class="emoji">📭</span>暂无预约</div>` :
+        `<table class="table">
+          <thead><tr><th>游戏账号</th><th>游戏</th><th>状态</th></tr></thead>
+          <tbody>
+            ${recentBookings.map(b => {
+              const tag = b.status === 'checked'
+                ? `<span class="badge badge-mint">已核销</span>`
+                : `<span class="badge badge-yellow">待核销</span>`;
+              const ga = b.gameAccount || {};
+              const sess = sessions.find(s => s.id === b.sessionId);
+              const game = getGame(sess?.game);
+              return `<tr>
+                <td>${ga.avatar || '🎮'} ${ga.nickname || '<span style=\"color:var(--text-3);\">未绑定</span>'} <span style="color:var(--text-3);font-size:11px;">${ga.tag || ''}</span></td>
+                <td>${sess ? `<span class="game-badge ${sess.game || 'jcc'}">${game.icon} ${game.short}</span>` : '—'}</td>
+                <td>${tag}</td>
+              </tr>`;
+            }).join('')}
+          </tbody>
+        </table>`
+      }
+    </div>
+  </div>
+`;
+
+// ---------- 折线图（纯 SVG） ----------
+function drawTrend() {
+  const wrap = document.getElementById('chart');
+  const data = stats.trend;
+  const W = wrap.clientWidth || 800;
+  const H = 220;
+  const pad = { l: 40, r: 20, t: 20, b: 36 };
+  const innerW = W - pad.l - pad.r;
+  const innerH = H - pad.t - pad.b;
+  const maxY = Math.max(4, ...data.map(d => d.count));
+  const stepX = innerW / Math.max(1, data.length - 1);
+
+  const points = data.map((d, i) => ({
+    x: pad.l + i * stepX,
+    y: pad.t + innerH - (d.count / maxY) * innerH,
+    ...d
+  }));
+
+  const gridLines = [];
+  for (let i = 0; i <= 4; i++) {
+    const y = pad.t + (innerH / 4) * i;
+    const v = Math.round(maxY - (maxY / 4) * i);
+    gridLines.push(`<line x1="${pad.l}" y1="${y}" x2="${W - pad.r}" y2="${y}" stroke="#ECE6F5" />`);
+    gridLines.push(`<text x="${pad.l - 8}" y="${y + 4}" text-anchor="end" font-size="11" fill="#9C92B8">${v}</text>`);
+  }
+
+  const linePath = points.map((p, i) => `${i === 0 ? 'M' : 'L'} ${p.x} ${p.y}`).join(' ');
+  const areaPath = `${linePath} L ${points[points.length - 1].x} ${pad.t + innerH} L ${points[0].x} ${pad.t + innerH} Z`;
+
+  wrap.innerHTML = `
+    <svg class="chart-svg" viewBox="0 0 ${W} ${H}" preserveAspectRatio="none">
+      <defs>
+        <linearGradient id="areaGrad" x1="0" y1="0" x2="0" y2="1">
+          <stop offset="0%" stop-color="#8B7FD8" stop-opacity="0.35" />
+          <stop offset="100%" stop-color="#8B7FD8" stop-opacity="0" />
+        </linearGradient>
+      </defs>
+      ${gridLines.join('')}
+      <path d="${areaPath}" fill="url(#areaGrad)" />
+      <path d="${linePath}" fill="none" stroke="#8B7FD8" stroke-width="2.5" stroke-linejoin="round" />
+      ${points.map(p => `
+        <circle cx="${p.x}" cy="${p.y}" r="4" fill="#fff" stroke="#8B7FD8" stroke-width="2" />
+        <text x="${p.x}" y="${H - pad.b + 18}" text-anchor="middle" font-size="11" fill="#6B5F8A">${p.date.slice(5)}</text>
+        ${p.count > 0 ? `<text x="${p.x}" y="${p.y - 10}" text-anchor="middle" font-size="11" fill="#6B5FB8" font-weight="600">${p.count}</text>` : ''}
+      `).join('')}
+    </svg>
+  `;
+}
+drawTrend();
+window.addEventListener('resize', drawTrend);
+</script>
+</body>
+</html>

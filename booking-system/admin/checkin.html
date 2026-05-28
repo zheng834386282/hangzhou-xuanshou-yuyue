@@ -1,0 +1,234 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>核销操作 · 棋遇预约管理</title>
+<link rel="stylesheet" href="../styles/tokens.css" />
+<link rel="stylesheet" href="../styles/admin.css" />
+</head>
+<body>
+<div class="layout" id="layout"></div>
+
+<script type="module">
+import {
+  initStore, checkInBooking, getBookings, getSessionById, fmtDateCN, getGame,
+  formatBookingDisplayId
+} from '../shared/store.js';
+import { renderAdminLayout } from '../shared/layout.js';
+
+initStore();
+renderAdminLayout({
+  active: 'checkin',
+  title: '核销操作',
+  actions: ''
+});
+
+document.getElementById('content').innerHTML = `
+  <div class="checkin-wrap">
+    <div class="card">
+      <div class="card-head">
+        <div>
+          <h3>输入预约 ID</h3>
+          <div class="sub">让用户出示「我的预约」中的预约 ID，输入后回车或点击核销</div>
+        </div>
+      </div>
+
+      <div class="checkin-input">
+        <input id="codeInput" placeholder="请输入预约 ID（如 ABCD2345EF）" maxlength="14" autofocus />
+        <button class="btn btn-primary" id="checkBtn">核销</button>
+      </div>
+
+      <div style="font-size:12px;color:var(--text-3);">
+        💡 输入时可省略 # 前缀，大小写不敏感，会自动去空格匹配
+      </div>
+
+      <div id="result"></div>
+    </div>
+
+    <!-- 今日核销动态 -->
+    <div class="card" style="margin-top:20px;">
+      <div class="card-head">
+        <div>
+          <h3>今日核销动态</h3>
+          <div class="sub" id="todaySub">—</div>
+        </div>
+      </div>
+      <div id="todayList"></div>
+    </div>
+
+    <!-- 待核销列表（快速核销） -->
+    <div class="card" style="margin-top:20px;">
+      <div class="card-head">
+        <div>
+          <h3>今日待核销</h3>
+          <div class="sub" id="pendingSub">最近 30 分钟内即将开始或正在进行中的预约</div>
+        </div>
+      </div>
+      <div id="pendingList"></div>
+    </div>
+  </div>
+`;
+
+const codeInput = document.getElementById('codeInput');
+const resultEl = document.getElementById('result');
+
+// 自动从 URL 参数读取
+const urlCode = new URLSearchParams(location.search).get('id') || new URLSearchParams(location.search).get('code');
+if (urlCode) {
+  codeInput.value = urlCode.toUpperCase();
+  setTimeout(() => doCheck(), 100);
+}
+
+codeInput.addEventListener('input', e => {
+  e.target.value = e.target.value.toUpperCase();
+});
+codeInput.addEventListener('keydown', e => {
+  if (e.key === 'Enter') doCheck();
+});
+document.getElementById('checkBtn').onclick = doCheck;
+
+function doCheck() {
+  const code = codeInput.value.trim();
+  if (!code) return;
+  const r = checkInBooking(code);
+  showResult(r);
+  renderToday();
+  renderPending();
+
+  if (r.ok) {
+    codeInput.value = '';
+    setTimeout(() => codeInput.focus(), 100);
+  }
+}
+
+function showResult(r) {
+  if (r.ok) {
+    const bk = r.booking;
+    const sess = getSessionById(bk.sessionId);
+    const ga = bk.gameAccount || {};
+    const game = getGame(sess?.game);
+    const ch = sess?.challenger;
+    resultEl.innerHTML = `
+      <div class="checkin-result success">
+        <div class="big-icon">✅</div>
+        <div class="big-msg" style="color:#3A7560;">核销成功</div>
+        <div style="display:inline-flex;align-items:center;gap:10px;background:#fff;padding:10px 16px;border-radius:14px;margin-top:10px;">
+          <div style="width:40px;height:40px;border-radius:50%;background:linear-gradient(135deg,#FFE9A8,#D88ECF);display:flex;align-items:center;justify-content:center;font-size:22px;">${ga.avatar || '🎮'}</div>
+          <div style="text-align:left;">
+            <div style="font-size:15px;font-weight:700;color:var(--text-1);">${ga.nickname || '—'} <span style="font-size:12px;color:var(--text-3);font-weight:400;">${ga.tag || ''}</span></div>
+            <div style="font-size:11px;color:var(--text-3);">${ga.server || ''}${ga.rank ? ` · ${ga.rank}` : ''}</div>
+          </div>
+        </div>
+        <div class="info-list">
+          <div class="row"><span class="k">预约 ID</span><span class="v" style="font-family:monospace;letter-spacing:2px;">${formatBookingDisplayId(bk.id)}</span></div>
+          <div class="row"><span class="k">游戏账号</span><span class="v">${ga.nickname || '—'} ${ga.tag || ''}</span></div>
+          <div class="row"><span class="k">游戏类型</span><span class="v">${sess ? `${game.icon} ${game.name}` : '—'}</span></div>
+          <div class="row"><span class="k">挑战选手</span><span class="v">${ch ? `${ch.avatar || '🎮'} ${ch.name}` : '—'}</span></div>
+          <div class="row"><span class="k">场次</span><span class="v">${sess ? `${fmtDateCN(sess.date)} ${sess.startTime}-${sess.endTime}` : '—'}</span></div>
+        </div>
+      </div>
+    `;
+  } else {
+    resultEl.innerHTML = `
+      <div class="checkin-result error">
+        <div class="big-icon">❌</div>
+        <div class="big-msg" style="color:#C5485A;">${r.msg}</div>
+        ${r.booking ? `
+        <div class="info-list">
+          <div class="row"><span class="k">预约 ID</span><span class="v" style="font-family:monospace;letter-spacing:2px;">${formatBookingDisplayId(r.booking.id)}</span></div>
+          <div class="row"><span class="k">游戏账号</span><span class="v">${r.booking.gameAccount?.nickname || '—'} ${r.booking.gameAccount?.tag || ''}</span></div>
+          <div class="row"><span class="k">核销时间</span><span class="v">${r.booking.checkedAt ? new Date(r.booking.checkedAt).toLocaleString('zh-CN') : '—'}</span></div>
+        </div>` : ''}
+      </div>
+    `;
+  }
+}
+
+function renderToday() {
+  const todayStart = new Date(); todayStart.setHours(0,0,0,0);
+  const today = getBookings()
+    .filter(b => b.status === 'checked' && b.checkedAt && b.checkedAt >= todayStart.getTime())
+    .sort((a, b) => b.checkedAt - a.checkedAt);
+
+  document.getElementById('todaySub').textContent = `今日已核销 ${today.length} 单`;
+  document.getElementById('todayList').innerHTML = today.length === 0
+    ? `<div class="admin-empty"><span class="emoji">⏳</span>今天还没有核销记录</div>`
+    : `<table class="table">
+        <thead><tr><th>核销时间</th><th>预约 ID</th><th>游戏账号</th><th>游戏</th><th>挑战选手</th><th>场次</th></tr></thead>
+        <tbody>
+          ${today.map(b => {
+            const s = getSessionById(b.sessionId);
+            const ga = b.gameAccount || {};
+            const game = getGame(s?.game);
+            const ch = s?.challenger;
+            return `<tr>
+              <td>${new Date(b.checkedAt).toLocaleTimeString('zh-CN', {hour12: false}).slice(0,5)}</td>
+              <td style="font-family:monospace;color:var(--candy-purple-deep);letter-spacing:1px;font-weight:600;">${formatBookingDisplayId(b.id)}</td>
+              <td>${ga.avatar || '🎮'} ${ga.nickname || '—'} <span style="color:var(--text-3);font-size:11px;">${ga.tag || ''}</span></td>
+              <td>${s ? `<span class="game-badge ${s.game || 'jcc'}">${game.icon} ${game.short}</span>` : '—'}</td>
+              <td>${ch ? `${ch.avatar || '🎮'} ${ch.name}` : '<span style="color:var(--text-3);">—</span>'}</td>
+              <td>${s ? `${s.date} ${s.startTime}` : '—'}</td>
+            </tr>`;
+          }).join('')}
+        </tbody>
+      </table>`;
+}
+
+// 今日待核销快捷列表
+function renderPending() {
+  const todayDate = new Date().toISOString().slice(0, 10);
+  const pending = getBookings()
+    .filter(b => b.status === 'pending')
+    .filter(b => {
+      const s = getSessionById(b.sessionId);
+      return s && s.date === todayDate;
+    })
+    .sort((a, b) => {
+      const sa = getSessionById(a.sessionId);
+      const sb = getSessionById(b.sessionId);
+      return (sa?.startTime || '').localeCompare(sb?.startTime || '');
+    });
+
+  document.getElementById('pendingSub').textContent = `今日共 ${pending.length} 个待核销预约`;
+  document.getElementById('pendingList').innerHTML = pending.length === 0
+    ? `<div class="admin-empty"><span class="emoji">✨</span>今天没有待核销的预约</div>`
+    : `<table class="table">
+        <thead><tr><th>场次</th><th>预约 ID</th><th>游戏账号</th><th>挑战选手</th><th style="width:100px;">操作</th></tr></thead>
+        <tbody>
+          ${pending.map(b => {
+            const s = getSessionById(b.sessionId);
+            const ga = b.gameAccount || {};
+            const game = getGame(s?.game);
+            const ch = s?.challenger;
+            return `<tr>
+              <td>${s ? `<span class="game-badge ${s.game || 'jcc'}">${game.icon} ${s.startTime}-${s.endTime}</span>` : '—'}</td>
+              <td style="font-family:monospace;color:var(--candy-purple-deep);letter-spacing:1px;font-weight:600;">${formatBookingDisplayId(b.id)}</td>
+              <td>${ga.avatar || '🎮'} ${ga.nickname || '—'} <span style="color:var(--text-3);font-size:11px;">${ga.tag || ''}</span></td>
+              <td>${ch ? `${ch.avatar || '🎮'} ${ch.name}` : '<span style="color:var(--text-3);">—</span>'}</td>
+              <td>
+                <div class="ops">
+                  <button data-quick-id="${b.id}">一键核销</button>
+                </div>
+              </td>
+            </tr>`;
+          }).join('')}
+        </tbody>
+      </table>`;
+
+  document.querySelectorAll('button[data-quick-id]').forEach(btn => {
+    btn.onclick = () => {
+      const id = btn.dataset.quickId;
+      const r = checkInBooking(id);
+      showResult(r);
+      renderToday();
+      renderPending();
+    };
+  });
+}
+
+renderToday();
+renderPending();
+</script>
+</body>
+</html>

@@ -1,0 +1,461 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>场次管理 · 棋遇预约管理</title>
+<link rel="stylesheet" href="../styles/tokens.css" />
+<link rel="stylesheet" href="../styles/admin.css" />
+</head>
+<body>
+<div class="layout" id="layout"></div>
+
+<!-- 单条添加模态 -->
+<div class="modal-wrap" id="addModal" style="display:none;">
+  <div class="panel" style="width:520px;">
+    <h3 id="addTitle">新建场次</h3>
+    <div class="form-grid">
+      <div class="field full">
+        <label>游戏类型</label>
+        <div class="game-radio" id="aGameRadio">
+          <label class="jcc active" data-game="jcc">
+            <span class="ico">⚔️</span>
+            <input type="radio" name="aGame" value="jcc" checked />
+            金铲铲之战
+          </label>
+          <label class="tft" data-game="tft">
+            <span class="ico">♟️</span>
+            <input type="radio" name="aGame" value="tft" />
+            云顶之弈
+          </label>
+        </div>
+      </div>
+      <div class="field">
+        <label>日期</label>
+        <input type="date" id="aDate" />
+      </div>
+      <div class="field">
+        <label>容量（人数）</label>
+        <input type="number" id="aCap" min="1" max="200" placeholder="如 12" />
+      </div>
+      <div class="field">
+        <label>开始时间</label>
+        <input type="time" id="aStart" />
+      </div>
+      <div class="field">
+        <label>结束时间</label>
+        <input type="time" id="aEnd" />
+      </div>
+      <div class="field">
+        <label>挑战选手姓名</label>
+        <input type="text" id="aChName" placeholder="如 红莲、白起" maxlength="10" />
+      </div>
+      <div class="field">
+        <label>选手头像（emoji 占位）</label>
+        <input type="text" id="aChAvatar" placeholder="如 🔥、⚡（可选）" maxlength="4" />
+      </div>
+    </div>
+    <div class="modal-actions">
+      <button class="btn btn-ghost" id="cancelAdd">取消</button>
+      <button class="btn btn-primary" id="confirmAdd">保存</button>
+    </div>
+  </div>
+</div>
+
+<!-- 批量生成模态 -->
+<div class="modal-wrap" id="batchModal" style="display:none;">
+  <div class="panel" style="width:640px;">
+    <h3>批量生成场次</h3>
+    <div style="font-size:13px;color:var(--text-3);margin-bottom:14px;">在所选日期范围内，按设定的游戏交替规则与时段模板批量创建场次。</div>
+
+    <div class="form-grid">
+      <div class="field">
+        <label>开始日期</label>
+        <input type="date" id="bStart" />
+      </div>
+      <div class="field">
+        <label>结束日期</label>
+        <input type="date" id="bEnd" />
+      </div>
+    </div>
+
+    <div class="field full" style="margin-top:14px;">
+      <label>游戏排期模式</label>
+      <div class="game-radio" id="bGameMode">
+        <label class="jcc active" data-mode="jcc">
+          <span class="ico">⚔️</span>
+          <input type="radio" name="bMode" value="jcc" checked />
+          全部金铲铲
+        </label>
+        <label class="tft" data-mode="tft">
+          <span class="ico">♟️</span>
+          <input type="radio" name="bMode" value="tft" />
+          全部云顶
+        </label>
+        <label data-mode="alt-jcc" style="background:linear-gradient(135deg,#FFF6E6 50%,#E6EDFA 50%);">
+          <span class="ico">🔄</span>
+          <input type="radio" name="bMode" value="alt-jcc" />
+          交替（铲始）
+        </label>
+        <label data-mode="alt-tft" style="background:linear-gradient(135deg,#E6EDFA 50%,#FFF6E6 50%);">
+          <span class="ico">🔄</span>
+          <input type="radio" name="bMode" value="alt-tft" />
+          交替（云始）
+        </label>
+      </div>
+      <div class="hint">"交替"模式：日期奇偶切换游戏；起始日游戏由模式决定。</div>
+    </div>
+
+    <div class="field" style="margin-top:14px;">
+      <label>仅在以下星期生成（不勾则每天都生成）</label>
+      <div id="weekdays" style="display:flex;gap:8px;flex-wrap:wrap;">
+        ${['日','一','二','三','四','五','六'].map((w, i) =>
+          `<label style="display:flex;align-items:center;gap:4px;padding:6px 12px;border:1px solid var(--line);border-radius:8px;font-size:13px;cursor:pointer;">
+            <input type="checkbox" value="${i}" />周${w}
+          </label>`
+        ).join('')}
+      </div>
+    </div>
+
+    <div class="field" style="margin-top:14px;">
+      <label>每日时段模板（每个时段配选手）</label>
+      <div id="slots"></div>
+      <button id="addSlot" class="btn btn-ghost" style="height:34px;font-size:13px;width:auto;align-self:flex-start;margin-top:6px;">+ 添加时段</button>
+    </div>
+
+    <div class="modal-actions">
+      <button class="btn btn-ghost" id="cancelBatch">取消</button>
+      <button class="btn btn-primary" id="confirmBatch">生成</button>
+    </div>
+  </div>
+</div>
+
+<script type="module">
+import {
+  initStore, getSessions, addSession, updateSession, deleteSession,
+  batchAddSessions, fmtDateCN, getGame, getChallengerPool
+} from '../shared/store.js';
+import { renderAdminLayout } from '../shared/layout.js';
+
+initStore();
+renderAdminLayout({
+  active: 'sessions',
+  title: '场次管理',
+  actions: `
+    <button class="btn btn-ghost" id="topBatch" style="height:36px;padding:0 14px;font-size:13px;">📅 批量生成</button>
+    <button class="btn btn-primary" id="topAdd" style="height:36px;padding:0 14px;font-size:13px;">+ 新建场次</button>
+  `
+});
+
+let editId = null;
+let filterStatus = 'all';
+let filterDate = '';
+let filterGame = 'all';
+
+function render() {
+  const today = new Date().toISOString().slice(0, 10);
+  let list = getSessions().slice();
+
+  if (filterDate) list = list.filter(s => s.date === filterDate);
+  if (filterStatus === 'upcoming') list = list.filter(s => s.date >= today);
+  else if (filterStatus === 'past') list = list.filter(s => s.date < today);
+  else if (filterStatus === 'full') list = list.filter(s => s.booked >= s.capacity);
+  if (filterGame !== 'all') list = list.filter(s => (s.game || 'jcc') === filterGame);
+
+  list.sort((a, b) => (a.date + a.startTime).localeCompare(b.date + b.startTime));
+
+  document.getElementById('content').innerHTML = `
+    <div class="card">
+      <div class="card-head">
+        <div>
+          <h3>全部场次（${list.length}）</h3>
+          <div class="sub">单条添加适合临时调整，批量生成适合赛事开播前一次性铺排一周/一月</div>
+        </div>
+      </div>
+
+      <div class="filter-bar">
+        <select id="fGame">
+          <option value="all">全部游戏</option>
+          <option value="jcc">⚔️ 金铲铲之战</option>
+          <option value="tft">♟️ 云顶之弈</option>
+        </select>
+        <select id="fStatus">
+          <option value="all">全部状态</option>
+          <option value="upcoming">未开始</option>
+          <option value="past">已结束</option>
+          <option value="full">已满</option>
+        </select>
+        <input type="date" id="fDate" value="${filterDate}" />
+        <button class="btn btn-ghost" id="fClear" style="height:36px;padding:0 12px;font-size:12px;">清除筛选</button>
+      </div>
+
+      ${list.length === 0
+        ? `<div class="admin-empty"><span class="emoji">🗓️</span>暂无场次，点击右上角「新建」或「批量生成」</div>`
+        : `<table class="table">
+            <thead>
+              <tr>
+                <th style="width:120px;">游戏</th>
+                <th style="width:140px;">日期</th>
+                <th style="width:130px;">时段</th>
+                <th style="width:140px;">挑战选手</th>
+                <th style="width:200px;">容量</th>
+                <th>状态</th>
+                <th style="width:200px;">操作</th>
+              </tr>
+            </thead>
+            <tbody>
+              ${list.map(s => {
+                const past = (s.date + s.endTime) < (today + new Date().toTimeString().slice(0,5));
+                const full = s.booked >= s.capacity;
+                const pct = Math.round((s.booked / s.capacity) * 100);
+                const status = past ? `<span class="badge badge-gray">已结束</span>`
+                  : full ? `<span class="badge badge-pink">已满</span>`
+                  : s.status === 'closed' ? `<span class="badge badge-gray">已关闭</span>`
+                  : `<span class="badge badge-mint">开放预约</span>`;
+                const game = getGame(s.game);
+                const ch = s.challenger;
+                return `
+                  <tr>
+                    <td><span class="game-badge ${s.game || 'jcc'}">${game.icon} ${game.short}</span></td>
+                    <td>${fmtDateCN(s.date)}</td>
+                    <td>${s.startTime} - ${s.endTime}</td>
+                    <td>${ch
+                      ? `<div class="challenger-mini"><div class="ava">${ch.avatar || '🎮'}</div><span class="name">${ch.name}</span></div>`
+                      : '<span style="color:var(--text-3);font-size:12px;">未指定</span>'}</td>
+                    <td>
+                      <div class="cap-cell">
+                        <div class="bar"><i class="${pct>70?'warn':''}" style="width:${pct}%"></i></div>
+                        <div class="num">${s.booked}/${s.capacity}</div>
+                      </div>
+                    </td>
+                    <td>${status}</td>
+                    <td>
+                      <div class="ops">
+                        <button data-act="edit" data-id="${s.id}">编辑</button>
+                        ${s.status === 'closed'
+                          ? `<button data-act="open" data-id="${s.id}">恢复</button>`
+                          : `<button data-act="close" data-id="${s.id}">关闭</button>`}
+                        <button class="danger" data-act="del" data-id="${s.id}" ${s.booked > 0 ? 'disabled title="有预约不可删除"' : ''}>删除</button>
+                      </div>
+                    </td>
+                  </tr>`;
+              }).join('')}
+            </tbody>
+          </table>`
+      }
+    </div>
+  `;
+
+  document.getElementById('fGame').value = filterGame;
+  document.getElementById('fGame').onchange = (e) => { filterGame = e.target.value; render(); };
+  document.getElementById('fStatus').value = filterStatus;
+  document.getElementById('fStatus').onchange = (e) => { filterStatus = e.target.value; render(); };
+  document.getElementById('fDate').onchange = (e) => { filterDate = e.target.value; render(); };
+  document.getElementById('fClear').onclick = () => { filterStatus = 'all'; filterDate = ''; filterGame = 'all'; render(); };
+
+  document.querySelectorAll('button[data-act]').forEach(btn => {
+    btn.onclick = () => {
+      const id = btn.dataset.id;
+      const s = getSessions().find(x => x.id === id);
+      if (btn.dataset.act === 'edit') openAddModal(s);
+      else if (btn.dataset.act === 'del') {
+        if (confirm('确定删除该场次？')) { deleteSession(id); render(); }
+      }
+      else if (btn.dataset.act === 'close') { updateSession(id, { status: 'closed' }); render(); }
+      else if (btn.dataset.act === 'open') { updateSession(id, { status: 'open' }); render(); }
+    };
+  });
+}
+
+// ---------- 单条添加/编辑 ----------
+function bindGameRadio(wrapId, defaultGame) {
+  const wrap = document.getElementById(wrapId);
+  wrap.querySelectorAll('label').forEach(l => l.classList.remove('active'));
+  wrap.querySelector(`label[data-game="${defaultGame}"]`)?.classList.add('active');
+  wrap.querySelector(`label[data-mode="${defaultGame}"]`)?.classList.add('active');
+  wrap.querySelectorAll('label').forEach(l => {
+    l.onclick = () => {
+      wrap.querySelectorAll('label').forEach(x => x.classList.remove('active'));
+      l.classList.add('active');
+      l.querySelector('input').checked = true;
+    };
+  });
+}
+
+function openAddModal(s) {
+  editId = s ? s.id : null;
+  document.getElementById('addTitle').textContent = s ? '编辑场次' : '新建场次';
+  document.getElementById('aDate').value = s ? s.date : new Date().toISOString().slice(0, 10);
+  document.getElementById('aStart').value = s ? s.startTime : '14:00';
+  document.getElementById('aEnd').value = s ? s.endTime : '15:30';
+  document.getElementById('aCap').value = s ? s.capacity : 12;
+  document.getElementById('aChName').value = s?.challenger?.name || '';
+  document.getElementById('aChAvatar').value = s?.challenger?.avatar || '';
+  bindGameRadio('aGameRadio', s?.game || 'jcc');
+  document.getElementById('aGameRadio').querySelector(`input[value="${s?.game || 'jcc'}"]`).checked = true;
+  document.getElementById('addModal').style.display = 'flex';
+}
+document.getElementById('topAdd').onclick = () => openAddModal(null);
+document.getElementById('cancelAdd').onclick = () => { document.getElementById('addModal').style.display = 'none'; };
+document.getElementById('confirmAdd').onclick = () => {
+  const date = document.getElementById('aDate').value;
+  const startTime = document.getElementById('aStart').value;
+  const endTime = document.getElementById('aEnd').value;
+  const capacity = parseInt(document.getElementById('aCap').value, 10);
+  const game = document.querySelector('#aGameRadio input:checked').value;
+  const chName = document.getElementById('aChName').value.trim();
+  const chAvatar = document.getElementById('aChAvatar').value.trim() || '🎮';
+  if (!date || !startTime || !endTime || !capacity) return alert('请填写完整信息');
+  if (startTime >= endTime) return alert('结束时间需晚于开始时间');
+
+  const challenger = chName ? { name: chName, avatar: chAvatar } : null;
+
+  if (editId) {
+    const sess = getSessions().find(x => x.id === editId);
+    if (capacity < sess.booked) return alert(`容量不能小于已预约人数 ${sess.booked}`);
+    updateSession(editId, { date, startTime, endTime, capacity, game, challenger });
+  } else {
+    addSession({ date, startTime, endTime, capacity, game, challenger });
+  }
+  document.getElementById('addModal').style.display = 'none';
+  render();
+};
+
+// ---------- 批量生成 ----------
+let batchSlots = [{ start: '10:00', end: '11:30', cap: 8, chName: '红莲', chAvatar: '🔥' }];
+function renderSlots() {
+  document.getElementById('slots').innerHTML = batchSlots.map((s, i) => `
+    <div style="display:grid;grid-template-columns: 1fr 1fr 80px 1fr 70px 32px;gap:8px;align-items:end;margin-bottom:8px;">
+      <div>
+        ${i === 0 ? `<label class="hint" style="font-size:11px;color:var(--text-3);">开始</label>` : ''}
+        <input type="time" data-i="${i}" data-k="start" value="${s.start}" style="height:36px;padding:0 10px;border:1px solid var(--line);border-radius:8px;width:100%;font-size:13px;" />
+      </div>
+      <div>
+        ${i === 0 ? `<label class="hint" style="font-size:11px;color:var(--text-3);">结束</label>` : ''}
+        <input type="time" data-i="${i}" data-k="end" value="${s.end}" style="height:36px;padding:0 10px;border:1px solid var(--line);border-radius:8px;width:100%;font-size:13px;" />
+      </div>
+      <div>
+        ${i === 0 ? `<label class="hint" style="font-size:11px;color:var(--text-3);">容量</label>` : ''}
+        <input type="number" data-i="${i}" data-k="cap" value="${s.cap}" min="1" style="height:36px;padding:0 10px;border:1px solid var(--line);border-radius:8px;width:100%;font-size:13px;" />
+      </div>
+      <div>
+        ${i === 0 ? `<label class="hint" style="font-size:11px;color:var(--text-3);">挑战选手</label>` : ''}
+        <input type="text" data-i="${i}" data-k="chName" value="${s.chName || ''}" placeholder="选手名" maxlength="10" style="height:36px;padding:0 10px;border:1px solid var(--line);border-radius:8px;width:100%;font-size:13px;" />
+      </div>
+      <div>
+        ${i === 0 ? `<label class="hint" style="font-size:11px;color:var(--text-3);">头像</label>` : ''}
+        <input type="text" data-i="${i}" data-k="chAvatar" value="${s.chAvatar || ''}" placeholder="emoji" maxlength="4" style="height:36px;padding:0 10px;border:1px solid var(--line);border-radius:8px;width:100%;font-size:13px;text-align:center;" />
+      </div>
+      <button class="del" data-del="${i}" ${batchSlots.length === 1 ? 'disabled style="opacity:0.4;"' : ''} style="width:32px;height:36px;border-radius:8px;background:#FFEEEE;color:var(--danger);font-size:14px;${i === 0 ? 'margin-top:18px;' : ''}">×</button>
+    </div>
+  `).join('');
+
+  document.querySelectorAll('#slots input').forEach(el => {
+    el.oninput = () => {
+      const i = +el.dataset.i, k = el.dataset.k;
+      batchSlots[i][k] = el.value;
+    };
+  });
+  document.querySelectorAll('#slots .del').forEach(el => {
+    el.onclick = () => {
+      const i = +el.dataset.del;
+      batchSlots.splice(i, 1);
+      renderSlots();
+    };
+  });
+}
+document.getElementById('addSlot').onclick = () => {
+  const pool = getChallengerPool();
+  const next = pool[batchSlots.length % pool.length];
+  batchSlots.push({ start: '14:00', end: '15:30', cap: 12, chName: next.name, chAvatar: next.avatar });
+  renderSlots();
+};
+
+// 批量模式选择
+let batchMode = 'jcc';
+function bindBatchModeRadio() {
+  const wrap = document.getElementById('bGameMode');
+  wrap.querySelectorAll('label').forEach(l => {
+    l.onclick = () => {
+      wrap.querySelectorAll('label').forEach(x => x.classList.remove('active'));
+      l.classList.add('active');
+      batchMode = l.dataset.mode;
+      l.querySelector('input').checked = true;
+    };
+  });
+}
+bindBatchModeRadio();
+
+document.getElementById('topBatch').onclick = () => {
+  const t = new Date().toISOString().slice(0, 10);
+  const week = new Date(); week.setDate(week.getDate() + 6);
+  document.getElementById('bStart').value = t;
+  document.getElementById('bEnd').value = week.toISOString().slice(0, 10);
+  const pool = getChallengerPool();
+  batchSlots = [
+    { start: '10:00', end: '11:30', cap: 8, chName: pool[0].name, chAvatar: pool[0].avatar },
+    { start: '14:00', end: '15:30', cap: 12, chName: pool[1].name, chAvatar: pool[1].avatar },
+    { start: '19:00', end: '20:30', cap: 10, chName: pool[2].name, chAvatar: pool[2].avatar }
+  ];
+  renderSlots();
+  document.getElementById('batchModal').style.display = 'flex';
+};
+document.getElementById('cancelBatch').onclick = () => {
+  document.getElementById('batchModal').style.display = 'none';
+};
+document.getElementById('confirmBatch').onclick = () => {
+  const startDate = document.getElementById('bStart').value;
+  const endDate = document.getElementById('bEnd').value;
+  if (!startDate || !endDate) return alert('请选择日期范围');
+  if (startDate > endDate) return alert('结束日期不能早于开始日期');
+  for (const s of batchSlots) {
+    if (!s.start || !s.end || !s.cap) return alert('请填写完整时段（开始/结束/容量）');
+    if (s.start >= s.end) return alert('每个时段开始需早于结束');
+  }
+  const weekdays = Array.from(document.querySelectorAll('#weekdays input:checked')).map(el => +el.value);
+
+  // 按"游戏排期模式"为每天计算游戏；交替模式按生成日的偏移
+  const start = new Date(startDate);
+  const end = new Date(endDate);
+  let dayIdx = 0;
+  let count = 0;
+
+  for (let d = new Date(start); d <= end; d.setDate(d.getDate() + 1)) {
+    const wd = d.getDay();
+    if (weekdays.length && !weekdays.includes(wd)) continue;
+
+    let gameForDay;
+    if (batchMode === 'jcc') gameForDay = 'jcc';
+    else if (batchMode === 'tft') gameForDay = 'tft';
+    else if (batchMode === 'alt-jcc') gameForDay = dayIdx % 2 === 0 ? 'jcc' : 'tft';
+    else if (batchMode === 'alt-tft') gameForDay = dayIdx % 2 === 0 ? 'tft' : 'jcc';
+
+    const slotsForDay = batchSlots.map(s => ({
+      start: s.start,
+      end: s.end,
+      cap: Number(s.cap),
+      game: gameForDay,
+      challengerName: (s.chName || '').trim() || null,
+      challengerAvatar: (s.chAvatar || '').trim() || '🎮'
+    }));
+
+    const c = batchAddSessions({
+      startDate: new Date(d).toISOString().slice(0, 10),
+      endDate: new Date(d).toISOString().slice(0, 10),
+      slots: slotsForDay,
+      weekdays: [],
+      skipMonday: false
+    });
+    count += c;
+    dayIdx++;
+  }
+
+  alert(`成功生成 ${count} 个场次`);
+  document.getElementById('batchModal').style.display = 'none';
+  render();
+};
+
+render();
+</script>
+</body>
+</html>

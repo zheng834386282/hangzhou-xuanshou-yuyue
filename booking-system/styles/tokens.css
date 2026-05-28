@@ -1,0 +1,117 @@
+/* ========================================
+   棋遇夏季赛 - 糖果色设计令牌
+   ======================================== */
+:root {
+  /* 品牌主色 */
+  --candy-yellow: #FFD66B;
+  --candy-pink: #D88ECF;
+  --candy-purple: #8B7FD8;
+  --candy-blue: #6B8BE8;
+  --candy-mint: #8ED4D0;
+
+  /* 派生 */
+  --candy-yellow-light: #FFE9A8;
+  --candy-pink-light: #F0C8E8;
+  --candy-purple-light: #C5BDEC;
+  --candy-purple-deep: #6B5FB8;
+  --candy-blue-light: #A8BCF0;
+
+  /* 中性 */
+  --bg: #FFF8EC;
+  --bg-card: #FFFFFF;
+  --bg-soft: #F7F3FF;
+  --text-1: #3A2E5C;
+  --text-2: #6B5F8A;
+  --text-3: #9C92B8;
+  --line: #ECE6F5;
+  --line-soft: #F5F0FB;
+
+  /* 状态 */
+  --success: #67C9A8;
+  --warning: #FFB763;
+  --danger: #FF7A8A;
+  --info: var(--candy-blue);
+
+  /* 阴影 */
+  --shadow-sm: 0 2px 8px rgba(139, 127, 216, 0.08);
+  --shadow-md: 0 6px 20px rgba(139, 127, 216, 0.12);
+  --shadow-lg: 0 12px 32px rgba(139, 127, 216, 0.16);
+
+  /* 圆角 */
+  --r-sm: 8px;
+  --r-md: 14px;
+  --r-lg: 20px;
+  --r-xl: 28px;
+
+  /* 字号 */
+  --fs-xs: 12px;
+  --fs-sm: 13px;
+  --fs-base: 14px;
+  --fs-md: 16px;
+  --fs-lg: 18px;
+  --fs-xl: 22px;
+  --fs-xxl: 28px;
+}
+
+* { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+html, body { margin: 0; padding: 0; }
+body {
+  font-family: -apple-system, BlinkMacSystemFont, "PingFang SC", "Microsoft YaHei", sans-serif;
+  color: var(--text-1);
+  background: var(--bg);
+  -webkit-font-smoothing: antialiased;
+}
+button { font-family: inherit; cursor: pointer; border: none; background: none; }
+input, select, textarea { font-family: inherit; outline: none; }
+a { color: inherit; text-decoration: none; }
+
+/* 通用按钮 */
+.btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  height: 44px;
+  padding: 0 20px;
+  border-radius: var(--r-md);
+  font-size: var(--fs-md);
+  font-weight: 600;
+  transition: all 0.2s;
+  user-select: none;
+}
+.btn-primary {
+  background: linear-gradient(135deg, var(--candy-purple), var(--candy-pink));
+  color: #fff;
+  box-shadow: 0 4px 12px rgba(139, 127, 216, 0.35);
+}
+.btn-primary:active { transform: translateY(1px); box-shadow: 0 2px 6px rgba(139, 127, 216, 0.3); }
+.btn-primary:disabled { background: #D0CADC; box-shadow: none; cursor: not-allowed; }
+
+.btn-ghost {
+  background: var(--bg-soft);
+  color: var(--candy-purple-deep);
+  border: 1px solid var(--line);
+}
+.btn-ghost:active { background: #EDE6F8; }
+
+.btn-yellow {
+  background: linear-gradient(135deg, #FFD66B, #FFB763);
+  color: #6B4A1F;
+  box-shadow: 0 4px 12px rgba(255, 183, 99, 0.4);
+}
+
+/* 标签 */
+.tag {
+  display: inline-flex;
+  align-items: center;
+  height: 22px;
+  padding: 0 8px;
+  border-radius: 11px;
+  font-size: var(--fs-xs);
+  font-weight: 500;
+}
+.tag-pink { background: #FCE7F4; color: #B65BA0; }
+.tag-purple { background: #EAE5F8; color: var(--candy-purple-deep); }
+.tag-mint { background: #DEF3F0; color: #4A9A8E; }
+.tag-yellow { background: #FFF1CC; color: #B07A1F; }
+.tag-gray { background: #ECE9F2; color: var(--text-3); }
